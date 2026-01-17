@@ -234,12 +234,15 @@
                 <h1>🤖 AI Spreadsheet Analyst</h1>
                 <div class="data-info" id="dataInfo">Initializing...</div>
             </div>
+            <button onclick="checkHealth()" style="background: rgba(255,255,255,0.2); border: 1px solid white; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px;">
+                🔍 Debug Info
+            </button>
         </div>
         
         <div class="chat-container" id="chatContainer">
             <div class="welcome">
                 <h2>Welcome to AI Spreadsheet Analyst</h2>
-                <p>Powered by Gemini 2.0 Flash</p>
+                <p>Powered by Gemini 2.5 Flash</p>
                 <p>Ask questions about your data and get instant insights</p>
                 <div class="sample-questions">
                     <div class="sample-q" onclick="askQuestion('What columns are in this dataset?')">📊 Show columns</div>
@@ -263,32 +266,80 @@
 
         // Initialize session
         async function initializeSession() {
+            const statusEl = document.getElementById('dataInfo');
+            
             try {
+                statusEl.innerHTML = '🔄 Step 1/3: Connecting to server...';
+                
                 const response = await fetch('/api/init', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({session_id: sessionId})
                 });
                 
+                statusEl.innerHTML = '🔄 Step 2/3: Processing response...';
+                
                 if (!response.ok) {
-                    throw new Error('Failed to initialize session');
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `HTTP ${response.status}`);
                 }
                 
                 const data = await response.json();
-                document.getElementById('dataInfo').innerHTML = 
-                    `${data.rows} rows × ${data.columns} columns | Columns: ${data.column_names.join(', ')}`;
                 
-                isInitialized = true;
-                console.log('Session initialized successfully');
+                statusEl.innerHTML = '🔄 Step 3/3: Finalizing...';
+                
+                setTimeout(() => {
+                    statusEl.innerHTML = 
+                        `✅ ${data.rows} rows × ${data.columns} columns | Columns: ${data.column_names.join(', ')}`;
+                    isInitialized = true;
+                    console.log('✓ Session initialized successfully');
+                }, 500);
+                
             } catch (error) {
                 console.error('Initialization error:', error);
-                document.getElementById('dataInfo').innerHTML = '❌ Failed to initialize';
-                addMessage('Error: Failed to initialize session. Please refresh the page.', 'ai');
+                statusEl.innerHTML = '❌ Initialization failed';
+                
+                // Show detailed error to user
+                const errorMsg = `
+                    <strong>Failed to initialize session</strong><br>
+                    Error: ${error.message}<br><br>
+                    <strong>Possible causes:</strong><br>
+                    • API key not set in Render environment variables<br>
+                    • Google Sheet not accessible<br>
+                    • Gemini API issue<br><br>
+                    Check Render logs for details.
+                `;
+                addMessage(errorMsg, 'ai');
             }
         }
 
         // Initialize on page load
         initializeSession();
+
+        // Health check function
+        async function checkHealth() {
+            try {
+                const response = await fetch('/api/health');
+                const data = await response.json();
+                
+                const healthInfo = `
+                    <strong>🏥 System Health Check</strong><br><br>
+                    <strong>Status:</strong> ${data.status}<br><br>
+                    <strong>Checks:</strong><br>
+                    • DataFrame Loaded: ${data.checks.dataframe_loaded ? '✅' : '❌'}<br>
+                    • API Key Configured: ${data.checks.api_key_configured ? '✅' : '❌'}<br>
+                    • Model Initialized: ${data.checks.model_initialized ? '✅' : '❌'}<br>
+                    • Active Sessions: ${data.checks.active_sessions}<br><br>
+                    <strong>Data:</strong><br>
+                    • Rows: ${data.data.rows}<br>
+                    • Columns: ${data.data.columns}
+                `;
+                
+                addMessage(healthInfo, 'ai');
+            } catch (error) {
+                addMessage(`Health check failed: ${error.message}`, 'ai');
+            }
+        }
 
         // Handle Enter key
         document.getElementById('userInput').addEventListener('keypress', function(e) {
