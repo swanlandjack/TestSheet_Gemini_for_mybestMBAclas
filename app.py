@@ -45,37 +45,42 @@ def home():
 
 @app.route('/api/init', methods=['POST'])
 def init_session():
-    session_id = request.json.get('session_id', 'default')
-    
-    chat = model.start_chat()
-    system_context = f"""You are a data analyst with access to a pandas DataFrame called 'df'.
+    try:
+        session_id = request.json.get('session_id', 'default')
+        
+        chat = model.start_chat()
+        system_context = f"""You are a data analyst with access to a pandas DataFrame called 'df'.
 
 {get_data_summary()}
 
 Use code execution to analyze the data. The DataFrame 'df' is loaded and ready."""
-    
-    chat.send_message(system_context)
-    chat_sessions[session_id] = chat
-    
-    return jsonify({
-        'status': 'success',
-        'rows': len(df),
-        'columns': len(df.columns),
-        'column_names': df.columns.tolist()
-    })
+        
+        chat.send_message(system_context)
+        chat_sessions[session_id] = chat
+        
+        return jsonify({
+            'status': 'success',
+            'rows': len(df),
+            'columns': len(df.columns),
+            'column_names': df.columns.tolist()
+        })
+    except Exception as e:
+        print(f"Init error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/query', methods=['POST'])
 def query():
-    session_id = request.json.get('session_id', 'default')
-    user_query = request.json.get('query', '')
-    
-    if not user_query:
-        return jsonify({'error': 'No query provided'}), 400
-    
-    if session_id not in chat_sessions:
-        return jsonify({'error': 'Session not initialized'}), 400
-    
     try:
+        session_id = request.json.get('session_id', 'default')
+        user_query = request.json.get('query', '')
+        
+        if not user_query:
+            return jsonify({'error': 'No query provided'}), 400
+        
+        if session_id not in chat_sessions:
+            print(f"Session {session_id} not found. Available sessions: {list(chat_sessions.keys())}")
+            return jsonify({'error': 'Session not initialized. Please refresh the page.'}), 400
+        
         chat = chat_sessions[session_id]
         response = chat.send_message(user_query)
         
@@ -97,6 +102,7 @@ def query():
         return jsonify(result)
         
     except Exception as e:
+        print(f"Query error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/data-info', methods=['GET'])

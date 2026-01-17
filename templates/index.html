@@ -259,18 +259,36 @@
     <script>
         const sessionId = 'session_' + Date.now();
         let isProcessing = false;
+        let isInitialized = false;
 
         // Initialize session
-        fetch('/api/init', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({session_id: sessionId})
-        })
-        .then(res => res.json())
-        .then(data => {
-            document.getElementById('dataInfo').innerHTML = 
-                `${data.rows} rows × ${data.columns} columns | Columns: ${data.column_names.join(', ')}`;
-        });
+        async function initializeSession() {
+            try {
+                const response = await fetch('/api/init', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({session_id: sessionId})
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to initialize session');
+                }
+                
+                const data = await response.json();
+                document.getElementById('dataInfo').innerHTML = 
+                    `${data.rows} rows × ${data.columns} columns | Columns: ${data.column_names.join(', ')}`;
+                
+                isInitialized = true;
+                console.log('Session initialized successfully');
+            } catch (error) {
+                console.error('Initialization error:', error);
+                document.getElementById('dataInfo').innerHTML = '❌ Failed to initialize';
+                addMessage('Error: Failed to initialize session. Please refresh the page.', 'ai');
+            }
+        }
+
+        // Initialize on page load
+        initializeSession();
 
         // Handle Enter key
         document.getElementById('userInput').addEventListener('keypress', function(e) {
@@ -280,6 +298,10 @@
         });
 
         function askQuestion(question) {
+            if (!isInitialized) {
+                addMessage('Please wait, initializing session...', 'ai');
+                return;
+            }
             document.getElementById('userInput').value = question;
             sendMessage();
         }
@@ -289,6 +311,11 @@
             const query = input.value.trim();
             
             if (!query || isProcessing) return;
+            
+            if (!isInitialized) {
+                addMessage('Please wait, initializing session...', 'ai');
+                return;
+            }
             
             // Add user message
             addMessage(query, 'user');
@@ -308,7 +335,12 @@
                     query: query
                 })
             })
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) {
+                    throw new Error(`HTTP error! status: ${res.status}`);
+                }
+                return res.json();
+            })
             .then(data => {
                 // Remove loading message
                 document.getElementById(loadingId).remove();
